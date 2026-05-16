@@ -1640,21 +1640,6 @@ impl UnifiedDemodulator {
 mod tests {
     use super::*;
     
-    #[test]
-    fn test_constellation_roundtrip() {
-        for ct in [
-            ConstellationType::Bpsk,
-            ConstellationType::Qpsk,
-            ConstellationType::Psk8,
-            ConstellationType::Qam16,
-        ] {
-            for sym in 0..ct.order() as u8 {
-                let (i, q) = ct.symbol_to_iq(sym);
-                let recovered = ct.iq_to_symbol(i, q);
-                assert_eq!(sym, recovered, "{:?} symbol {} roundtrip failed", ct, sym);
-            }
-        }
-    }
     
     #[test]
     fn test_modulator_constellation_switch() {
@@ -1670,35 +1655,6 @@ mod tests {
         assert_ne!(psk_samples, qam_samples);
     }
     
-    #[test]
-    fn test_loopback() {
-        let mut modulator = UnifiedModulator::new(ConstellationType::Psk8, 9600, 2400, 1800.0);
-        let mut demodulator = UnifiedDemodulator::new(ConstellationType::Psk8, 9600, 2400, 1800.0);
-        
-        let preamble = vec![0u8; 20];
-        let data = vec![0, 1, 2, 3, 4, 5, 6, 7];
-        let mut all_symbols = preamble.clone();
-        all_symbols.extend(&data);
-        
-        let mut samples = modulator.modulate(&all_symbols);
-        samples.extend(modulator.flush());
-        
-        let recovered = demodulator.demodulate(&samples);
-        
-        let skip = 20 + 12;
-        if recovered.len() >= skip + data.len() {
-            let offset = (recovered[skip] + 8 - data[0]) % 8;
-            
-            let mut errors = 0;
-            for i in 0..data.len() {
-                let expected = (data[i] + offset) % 8;
-                if recovered[skip + i] != expected {
-                    errors += 1;
-                }
-            }
-            assert!(errors <= 1, "Too many errors: {} out of {}", errors, data.len());
-        }
-    }
     
     #[test]
     fn test_pll_phase_tracking() {
@@ -2188,6 +2144,144 @@ mod tests {
             // Integrator should not have accumulated large value
             assert!(demodulator.pll_integrator.abs() < 1.0, 
                     "Integrator accumulated too much: {:.3}", demodulator.pll_integrator);
+        }
+    }
+}
+
+// =============================================================================
+// RRC filter unit tests
+// =============================================================================
+//
+// These test pub(crate) helpers (generate_rrc_coeffs, RRC_SPAN) and stay inline.
+// Integration tests in tests/ would need these promoted to pub, which would
+// duplicate wavecore_rs::RootRaisedCosine's public surface. Better kept private.
+
+#[cfg(test)]
+mod rrc_filter_tests {
+    use super::*;
+
+    /// Test that RRC filter has correct length.
+    #[test]
+    fn test_rrc_length() {
+        let sps = 4;
+        let coeffs = generate_rrc_coeffs(sps);
+        let expected_len = 2 * RRC_SPAN * sps + 1;
+        assert_eq!(coeffs.len(), expected_len,
+            "RRC length should be {}, got {}", expected_len, coeffs.len());
+    }
+
+    /// Test that RRC filter is normalized for unit energy.
+    #[test]
+    fn test_rrc_normalization() {
+        let sps = 4;
+        let coeffs = generate_rrc_coeffs(sps);
+
+        let energy: f64 = coeffs.iter().map(|x| x * x).sum();
+        assert!((energy - 1.0).abs() < 1e-6,
+            "RRC energy should be 1.0, got {}", energy);
+    }
+
+    /// Test RRC symmetry (linear phase).
+    #[test]
+    fn test_rrc_symmetry() {
+        let sps = 4;
+        let coeffs = generate_rrc_coeffs(sps);
+        let n = coeffs.len();
+
+        for i in 0..n/2 {
+            let diff = (coeffs[i] - coeffs[n - 1 - i]).abs();
+            assert!(diff < 1e-10,
+                "RRC not symmetric at {}: {} vs {}", i, coeffs[i], coeffs[n-1-i]);
+        }
+    }
+
+    /// Test that cascaded TX+RX RRC = raised cosine (Nyquist criterion).
+    #[test]
+    fn test_rrc_cascade_is_nyquist() {
+        let sps = 4;
+        let rrc = generate_rrc_coeffs(sps);
+
+        let rc_len = 2 * rrc.len() - 1;
+        let mut rc = vec![0.0; rc_len];
+
+        for (i, &h1) in rrc.iter().enumerate() {
+            for (j, &h2) in rrc.iter().enumerate() {
+                rc[i + j] += h1 * h2;
+            }
+        }
+
+        let center = rc_len / 2;
+
+        // Raised cosine should be near-zero at symbol intervals (except center).
+        for k in 1..=RRC_SPAN {
+            let idx_plus = center + k * sps;
+            let idx_minus = center - k * sps;
+
+            if idx_plus < rc_len {
+                let val: f64 = rc[idx_plus] / rc[center];
+                assert!(val.abs() < 0.05,
+                    "RC not zero at +{} symbols: {}", k, val);
+            }
+            if idx_minus < rc_len {
+                let val: f64 = rc[idx_minus] / rc[center];
+                assert!(val.abs() < 0.05,
+                    "RC not zero at -{} symbols: {}", k, val);
+            }
+        }
+    }
+}
+
+// =============================================================================
+// Phase detector unit tests
+// =============================================================================
+//
+// These test the pub(crate) compute_phase_error helper used by the 8th-power PLL.
+// Stays inline because compute_phase_error is implementation detail.
+
+#[cfg(test)]
+mod phase_detector_tests {
+    use super::*;
+    use core::f64::consts::PI;
+
+    const SAMPLE_RATE: u32 = 9600;
+    const SYMBOL_RATE: u32 = 2400;
+    const CARRIER_FREQ: f64 = 1800.0;
+
+    /// Test 8th-power phase detector with known phase offsets.
+    #[test]
+    fn test_phase_detector_8th_power() {
+        let demod = UnifiedDemodulator::new(
+            ConstellationType::Psk8, SAMPLE_RATE, SYMBOL_RATE, CARRIER_FREQ
+        );
+
+        for phase_deg in [0.0, 10.0, 20.0, -10.0, -20.0] {
+            let phase_rad: f64 = phase_deg * PI / 180.0;
+            let i = phase_rad.cos();
+            let q = phase_rad.sin();
+
+            let error = demod.compute_phase_error(i, q);
+
+            // Error should be close to the input phase (within ±22.5° unambiguous range).
+            let error_deg = error * 180.0 / PI;
+            assert!((error_deg - phase_deg).abs() < 5.0,
+                "Phase detector error: input {}°, output {}°", phase_deg, error_deg);
+        }
+    }
+
+    /// Test that 8th-power removes PSK modulation (all PSK8 symbols give same phase error).
+    #[test]
+    fn test_phase_detector_modulation_removal() {
+        let demod = UnifiedDemodulator::new(
+            ConstellationType::Psk8, SAMPLE_RATE, SYMBOL_RATE, CARRIER_FREQ
+        );
+
+        for sym in 0..8u8 {
+            let (i, q) = ConstellationType::Psk8.symbol_to_iq(sym);
+            let error = demod.compute_phase_error(i, q);
+
+            let error_deg = error.abs() * 180.0 / PI;
+            assert!(error_deg < 1.0,
+                "Symbol {} gave phase error {}° (should be ~0)", sym, error_deg);
         }
     }
 }

@@ -637,26 +637,6 @@ mod tests {
         assert!((result - 0.0).abs() < 1e-10);
     }
 
-    #[test]
-    fn test_bcjr_trivial() {
-        let bcjr = BcjrDecoder::new();
-
-        // Feed very confident LLRs — should decode cleanly
-        // All-zeros codeword: for state 0, input 0, both outputs are 0
-        // So LLR should be strongly negative (meaning bit=0 likely)
-        let n = 10;
-        let channel_llrs: Vec<(f64, f64)> = vec![(-5.0, -5.0); n];
-        let apriori: Vec<f64> = vec![0.0; n];
-
-        let (extrinsic, hard_bits) = bcjr.decode(&channel_llrs, &apriori);
-
-        // All-zeros input should produce all-zeros output
-        assert_eq!(hard_bits.len(), n);
-        for &bit in &hard_bits {
-            assert_eq!(bit, 0, "Expected all-zero decode");
-        }
-        assert_eq!(extrinsic.len(), n);
-    }
 
     #[test]
     fn test_interleaver_round_trip() {

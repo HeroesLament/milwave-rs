@@ -168,15 +168,6 @@ mod tests {
         Modulator::new(Psk8, pulse, carrier, timing)
     }
 
-    #[test]
-    fn test_modulator_output_length() {
-        let mut mod_ = make_test_modulator();
-        let symbols = vec![0, 1, 2, 3, 4, 5, 6, 7];
-        let samples = mod_.modulate(&symbols);
-
-        // 8 symbols * 4 samples/symbol = 32 samples
-        assert_eq!(samples.len(), 32);
-    }
 
     #[test]
     fn test_modulator_reset() {
@@ -192,30 +183,5 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_modulator_determinism() {
-        let mut mod1 = make_test_modulator();
-        let mut mod2 = make_test_modulator();
 
-        let symbols = vec![0, 1, 2, 3, 4, 5, 6, 7];
-        let samples1 = mod1.modulate(&symbols);
-        let samples2 = mod2.modulate(&symbols);
-
-        assert_eq!(samples1, samples2);
-    }
-
-    #[test]
-    fn test_modulator_bounded_output() {
-        let mut mod_ = make_test_modulator();
-        let symbols: Vec<u8> = (0..100).map(|i| i % 8).collect();
-        let samples = mod_.modulate(&symbols);
-
-        for &s in &samples {
-            assert!(
-                s.abs() < 32000,
-                "Sample {} exceeds safe range",
-                s
-            );
-        }
-    }
 }

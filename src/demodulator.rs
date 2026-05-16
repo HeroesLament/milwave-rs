@@ -262,64 +262,7 @@ mod tests {
         Demodulator::new(Psk8, pulse, carrier, timing)
     }
 
-    #[test]
-    fn test_loopback() {
-        let mut modulator = make_modulator();
-        let mut demodulator = make_demodulator();
 
-        // Send some symbols with preamble for timing
-        let preamble = vec![0u8; 20]; // Timing acquisition
-        let data = vec![0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3];
-        let mut all_symbols = preamble.clone();
-        all_symbols.extend(&data);
-
-        let samples = modulator.modulate(&all_symbols);
-        let flush = modulator.flush();
-
-        let mut all_samples = samples;
-        all_samples.extend(flush);
-
-        let recovered = demodulator.demodulate(&all_samples);
-
-        // Skip preamble and filter settling in comparison
-        let skip = 20 + 12; // preamble + 2*span
-        let data_len = data.len();
-
-        if recovered.len() > skip + data_len {
-            let recovered_data = &recovered[skip..skip + data_len];
-            assert_eq!(
-                recovered_data, &data[..],
-                "Loopback failed: {:?} vs {:?}",
-                recovered_data, data
-            );
-        }
-    }
-
-    #[test]
-    fn test_demodulate_to_iq() {
-        let mut modulator = make_modulator();
-        let mut demodulator = make_demodulator();
-
-        let symbols = vec![0, 2, 4, 6]; // 0°, 90°, 180°, 270°
-        let samples = modulator.modulate(&symbols);
-        let flush = modulator.flush();
-
-        let mut all_samples = samples;
-        all_samples.extend(flush);
-
-        let soft = demodulator.demodulate_to_iq(&all_samples);
-
-        // Should have roughly the same number of I/Q samples as symbols
-        // (plus some from filter settling)
-        assert!(soft.iq.len() >= symbols.len(), 
-            "Expected at least {} I/Q samples, got {}", 
-            symbols.len(), soft.iq.len());
-
-        // Timing offset should be valid
-        let sps = 9600 / 2400; // 4
-        assert!(soft.timing_offset < sps,
-            "Timing offset {} should be < {}", soft.timing_offset, sps);
-    }
 
     #[test]
     fn test_demodulator_reset() {

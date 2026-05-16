@@ -31,6 +31,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 #[cfg(feature = "alloc")]
+#[macro_use]
 extern crate alloc;
 
 // Modules will land as code is migrated from minutemodem/phy_modem/src/modem/:

@@ -31,82 +31,16 @@ use core::f64::consts::PI;
 
 // ============================================================================
 // Complex Number Type (used by equalizer)
-// ============================================================================
+use wavecore_rs::Complex;
 
-/// Simple complex number type (avoids external dependency)
-#[derive(Debug, Clone, Copy, Default)]
-pub struct Complex {
-    pub re: f64,
-    pub im: f64,
-}
+#[cfg(feature = "std")]
+use std::vec::Vec;
 
-impl Complex {
-    #[inline]
-    pub fn new(re: f64, im: f64) -> Self {
-        Self { re, im }
-    }
+#[cfg(all(not(feature = "std"), feature = "alloc"))]
+use alloc::vec::Vec;
 
-    #[inline]
-    pub fn zero() -> Self {
-        Self { re: 0.0, im: 0.0 }
-    }
-
-    #[inline]
-    pub fn conj(self) -> Self {
-        Self { re: self.re, im: -self.im }
-    }
-
-    #[inline]
-    pub fn mag_sq(self) -> f64 {
-        self.re * self.re + self.im * self.im
-    }
-
-    #[inline]
-    pub fn mag(self) -> f64 {
-        self.mag_sq().sqrt()
-    }
-}
-
-impl std::ops::Add for Complex {
-    type Output = Self;
-    #[inline]
-    fn add(self, rhs: Self) -> Self {
-        Self { re: self.re + rhs.re, im: self.im + rhs.im }
-    }
-}
-
-impl std::ops::Sub for Complex {
-    type Output = Self;
-    #[inline]
-    fn sub(self, rhs: Self) -> Self {
-        Self { re: self.re - rhs.re, im: self.im - rhs.im }
-    }
-}
-
-impl std::ops::Mul for Complex {
-    type Output = Self;
-    #[inline]
-    fn mul(self, rhs: Self) -> Self {
-        Self {
-            re: self.re * rhs.re - self.im * rhs.im,
-            im: self.re * rhs.im + self.im * rhs.re,
-        }
-    }
-}
-
-impl std::ops::Mul<f64> for Complex {
-    type Output = Self;
-    #[inline]
-    fn mul(self, rhs: f64) -> Self {
-        Self { re: self.re * rhs, im: self.im * rhs }
-    }
-}
-
-impl std::iter::Sum for Complex {
-    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
-        iter.fold(Complex::zero(), |acc, x| acc + x)
-    }
-}
+#[allow(unused_imports)]
+use num_traits::Float;
 
 // ============================================================================
 // Constellation enum - all supported constellations in one place
@@ -685,7 +619,7 @@ impl DFE {
     
     /// Get recorded telemetry and clear buffer
     pub fn take_telemetry(&mut self) -> Vec<DfeTelemetry> {
-        std::mem::take(&mut self.telemetry)
+        core::mem::take(&mut self.telemetry)
     }
     
     /// Compute total feedforward tap energy
@@ -1660,7 +1594,7 @@ impl UnifiedDemodulator {
     
     /// Get recorded telemetry and clear buffer
     pub fn take_telemetry(&mut self) -> Vec<PllTelemetry> {
-        std::mem::take(&mut self.telemetry)
+        core::mem::take(&mut self.telemetry)
     }
     
     /// Get current lock detector value: +1.0 = locked, 0.0 = unlocked

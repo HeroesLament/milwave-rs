@@ -5,6 +5,15 @@
 
 use wavecore_rs::{Carrier, Constellation, PulseShape, SymbolTiming};
 
+#[cfg(feature = "std")]
+use std::vec::Vec;
+
+#[cfg(all(not(feature = "std"), feature = "alloc"))]
+use alloc::vec::Vec;
+
+#[allow(unused_imports)]
+use num_traits::Float;
+
 /// Generic modulator composed of trait implementations
 ///
 /// # Type Parameters

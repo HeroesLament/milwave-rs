@@ -13,6 +13,15 @@
 
 use core::f64::consts::PI;
 
+#[cfg(feature = "std")]
+use std::vec::Vec;
+
+#[cfg(all(not(feature = "std"), feature = "alloc"))]
+use alloc::vec::Vec;
+
+#[allow(unused_imports)]
+use num_traits::Float;
+
 // ============================================================================
 // Walsh-16 patterns
 // ============================================================================
@@ -342,7 +351,7 @@ impl WalshCorrelator {
                 let idx = start + k;
                 let descrambled_sym = if pattern[k] > 0.0 { 0u8 } else { 4u8 };
                 let scrambled_sym = (descrambled_sym + scramble_offsets[idx]) % 8;
-                let angle = scrambled_sym as f64 * std::f64::consts::PI / 4.0;
+                let angle = scrambled_sym as f64 * core::f64::consts::PI / 4.0;
                 tx_i[k] = angle.cos();
                 tx_q[k] = angle.sin();
             }

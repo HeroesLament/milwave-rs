@@ -22,6 +22,15 @@
 
 use core::f64;
 
+#[cfg(feature = "std")]
+use std::vec::Vec;
+
+#[cfg(all(not(feature = "std"), feature = "alloc"))]
+use alloc::vec::Vec;
+
+#[allow(unused_imports)]
+use num_traits::Float;
+
 // ============================================================================
 // Convolutional code parameters
 // ============================================================================
@@ -66,7 +75,7 @@ impl Trellis {
         }; 2]; NUM_STATES];
 
         // Build array of empty Vecs for reverse lookup
-        let mut reverse: [Vec<(u8, u8)>; NUM_STATES] = std::array::from_fn(|_| Vec::new());
+        let mut reverse: [Vec<(u8, u8)>; NUM_STATES] = core::array::from_fn(|_| Vec::new());
 
         for state in 0..NUM_STATES {
             for input in 0u8..2 {
@@ -395,10 +404,10 @@ pub fn turbo_decode(
 
     // Precompute trig tables for phase search
     let phase_cos: Vec<f64> = (0..n_phases)
-        .map(|k| (k as f64 * std::f64::consts::PI / n_phases as f64).cos())
+        .map(|k| (k as f64 * core::f64::consts::PI / n_phases as f64).cos())
         .collect();
     let phase_sin: Vec<f64> = (0..n_phases)
-        .map(|k| (k as f64 * std::f64::consts::PI / n_phases as f64).sin())
+        .map(|k| (k as f64 * core::f64::consts::PI / n_phases as f64).sin())
         .collect();
 
     // Initial Walsh decode: no priors

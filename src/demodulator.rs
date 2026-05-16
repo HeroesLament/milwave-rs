@@ -6,6 +6,15 @@
 use wavecore_rs::{Carrier, Constellation, PulseShape, SymbolTiming};
 use core::f64::consts::PI;
 
+#[cfg(feature = "std")]
+use std::vec::Vec;
+
+#[cfg(all(not(feature = "std"), feature = "alloc"))]
+use alloc::vec::Vec;
+
+#[allow(unused_imports)]
+use num_traits::Float;
+
 /// Soft I/Q output with timing information
 #[derive(Debug, Clone)]
 pub struct SoftIQ {

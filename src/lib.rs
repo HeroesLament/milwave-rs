@@ -42,6 +42,4 @@ extern crate alloc;
 
 pub mod walsh;
 pub mod turbo;
-pub mod modulator;
-pub mod demodulator;
 pub mod unified;

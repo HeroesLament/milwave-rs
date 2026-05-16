@@ -1,0 +1,53 @@
+[package]
+name        = "milwave-rs"
+version     = "0.1.0"
+edition     = "2021"
+authors     = ["HeroesLament"]
+description = "MIL-STD waveform engine: 188-110D serial-tone modem, 188-141 ALE, STANAG. Composes wavecore-rs primitives into protocol-specific modems."
+license     = "MIT OR Apache-2.0"
+repository  = "https://github.com/HeroesLament/milwave-rs"
+readme      = "README.md"
+categories  = ["multimedia::audio", "no-std", "science"]
+keywords    = ["dsp", "modem", "hf", "milstd", "188-110d"]
+
+[lib]
+name = "milwave_rs"
+crate-type = ["rlib"]
+
+[features]
+default = ["std"]
+
+# Standard library available. num-traits dispatches to inherent f64 methods.
+std = ["num-traits/std", "wavecore-rs/std"]
+
+# Heap allocator available. Implicit under std.
+alloc = ["wavecore-rs/alloc"]
+
+# Software math via libm. Required for no_std builds with float math.
+libm = ["dep:libm", "num-traits/libm", "wavecore-rs/libm"]
+
+# Optional serde derives on public types.
+serde = ["dep:serde", "wavecore-rs/serde"]
+
+[dependencies]
+# DSP primitives (constellations, pulse shapes, carriers, timing, Complex).
+wavecore-rs = { git = "https://github.com/HeroesLament/wavecore-rs", branch = "main" }
+
+# Trait-based math that works in std and no_std.
+num-traits = { version = "0.2", default-features = false }
+
+# libm for no_std float math. Pulled when the libm feature is on.
+libm = { version = "0.2", optional = true }
+
+[dependencies.serde]
+version          = "1"
+optional         = true
+features         = ["derive"]
+default-features = false
+
+[dev-dependencies]
+approx = "0.5"
+
+[profile.release]
+opt-level = 3
+lto       = true

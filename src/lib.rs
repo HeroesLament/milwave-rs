@@ -38,3 +38,9 @@ extern crate alloc;
 //   pub mod equalizers;
 //   pub mod walsh;
 //   pub mod turbo;
+
+pub mod walsh;
+pub mod turbo;
+pub mod modulator;
+pub mod demodulator;
+pub mod unified;

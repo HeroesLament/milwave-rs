@@ -858,6 +858,60 @@ impl WalshCorrelator {
             .collect()
     }
     
+    /// Iterative pass-loop equalization + BCJR turbo decode.
+    ///
+    /// Runs `n_passes` of per-block CMA equalization, picking the pass with
+    /// the highest correlation total. Then runs BCJR turbo decoding on the
+    /// best equalized I/Q.
+    ///
+    /// Returns `(hard_bits, soft_dibit_llrs, iteration_scores)`:
+    /// - `hard_bits`: decoded information bits
+    /// - `soft_dibit_llrs`: final coded LLRs as `[(llr1, llr2)]` for metric extraction
+    /// - `iteration_scores`: Walsh correlation total per turbo iteration (convergence tracking)
+    pub fn turbo_decode_frame(
+        &mut self,
+        descrambled_iq: &[(f64, f64)],
+        raw_iq: &[(f64, f64)],
+        scramble_offsets: &[u8],
+        n_iterations: usize,
+    ) -> (Vec<u8>, Vec<(f64, f64)>, Vec<f64>) {
+        // Pass 0: correlate the input I/Q as-is.
+        let (mut best_quadbits, best_scores) = self.correlate_all_blocks(descrambled_iq);
+        let mut best_total: f64 = best_scores.iter().sum();
+        let mut best_eq_iq: Option<Vec<(f64, f64)>> = None;
+
+        // Passes 1..n_passes: equalize per-block based on the current best
+        // decisions, descramble, re-correlate. Keep the pass that scored highest.
+        for _pass in 1..self.n_passes {
+            let equalized = self.equalize_per_block(raw_iq, scramble_offsets, &best_quadbits);
+            let desc_eq = self.descramble_with_offsets(&equalized, scramble_offsets);
+            let (new_qbs, new_scores) = self.correlate_all_blocks(&desc_eq);
+            let new_total: f64 = new_scores.iter().sum();
+
+            if new_total > best_total {
+                best_quadbits = new_qbs;
+                best_total = new_total;
+                best_eq_iq = Some(desc_eq);
+            }
+        }
+
+        let final_iq: &[(f64, f64)] = match &best_eq_iq {
+            Some(eq) => eq.as_slice(),
+            None => descrambled_iq,
+        };
+
+        // Run BCJR turbo decoding on the best equalized I/Q.
+        let (hard_bits, soft_llrs, _extrinsic, iter_scores) =
+            crate::turbo::turbo_decode(
+                &self.walsh_signs,
+                final_iq,
+                self.n_phases,
+                n_iterations,
+            );
+
+        (hard_bits, soft_llrs, iter_scores)
+    }
+
     /// Estimate channel for a single block (for telemetry)
     fn estimate_channel_block(
         &self,
